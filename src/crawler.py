@@ -1,7 +1,9 @@
-import re
 import matplotlib.pyplot as plt
-from urllib import request
+import re
 from bs4 import BeautifulSoup
+from http.cookiejar import CookieJar
+from urllib import request
+
 from src.mtg_info import archetypes, card_types
 
 main_url = 'http://tcdecks.net/'
@@ -10,13 +12,14 @@ decks = []
 
 
 def obtain_page(url):
-
-    from http.cookiejar import CookieJar
     cj = CookieJar()
     cp = request.HTTPCookieProcessor(cj)
-    opener = request.build_opener(cp)
-    with opener.open(url, timeout=1000) as response:
-        soup = BeautifulSoup(response.read())
+    try:
+        opener = request.build_opener(cp)
+        with opener.open(url, timeout=1000) as response:
+            soup = BeautifulSoup(response.read())
+    except:
+        soup = None
     return soup
 
 
@@ -55,16 +58,23 @@ def obtain_decks():
     num_decks = 0
     cards = {}
     for ind, archetype in enumerate(archetypes):
-        archetype_page = obtain_page(archetypes_url.format(archetype.replace(' ', '%20')))
-        deck_urls = archetype_page.findAll('td', {'data-th': 'Deck Name'})
-        for deck_url in deck_urls:
-            num_decks += 1
-            url = '{}{}'.format(main_url, deck_url.find('a')['href'])
-            deck = obtain_page(url)
-            cards = process_deck(deck, cards)
-            print(url)
-            print('{}%'.format((num_decks/644)*100))
-
+        page = 0
+        deck_urls = []
+        while len(deck_urls) % 30 == 0:
+            page += 1
+            archetype_page = obtain_page(archetypes_url.format(archetype.replace(' ', '%20')) + '&page=' + str(page))
+            if archetype_page:
+                deck_urls = archetype_page.findAll('td', {'data-th': 'Deck Name'})
+                for deck_url in deck_urls:
+                    num_decks += 1
+                    url = '{}{}'.format(main_url, deck_url.find('a')['href'])
+                    deck = obtain_page(url)
+                    if deck:
+                        cards = process_deck(deck, cards)
+                        print(url)
+                        print('{}%'.format((num_decks/644)*100))
+            else:
+                deck_urls = ['bla']
     print('Total number of decks analyzed: {}'.format(num_decks))
     return cards
 
