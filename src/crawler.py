@@ -2,12 +2,11 @@ import re
 import matplotlib.pyplot as plt
 from urllib import request
 from bs4 import BeautifulSoup
-from mtg_info import archetypes, card_types
+from src.mtg_info import archetypes, card_types
 
 main_url = 'http://tcdecks.net/'
 archetypes_url = 'http://tcdecks.net/archetype.php?archetype={}&format=Vintage%20Old%20School'
 decks = []
-cards = {}
 
 
 def obtain_page(url):
@@ -21,7 +20,7 @@ def obtain_page(url):
     return soup
 
 
-def process_deck(deck_page):
+def process_deck(deck_page, cards):
     found_deck = {}
     deck_table = deck_page.find('table', {'class': 'table_deck'})
     all_data = ''
@@ -49,48 +48,78 @@ def process_deck(deck_page):
             except ValueError:
                 card_name += letter
     decks.append(found_deck)
+    return cards
 
 
 def obtain_decks():
     num_decks = 0
+    cards = {}
     for ind, archetype in enumerate(archetypes):
-        archetype_page = obtain_page(archetypes_url.format(archetype))
+        archetype_page = obtain_page(archetypes_url.format(archetype.replace(' ', '%20')))
         deck_urls = archetype_page.findAll('td', {'data-th': 'Deck Name'})
         for deck_url in deck_urls:
             num_decks += 1
             url = '{}{}'.format(main_url, deck_url.find('a')['href'])
             deck = obtain_page(url)
-            process_deck(deck)
+            cards = process_deck(deck, cards)
+            print(url)
             print('{}%'.format((num_decks/644)*100))
 
     print('Total number of decks analyzed: {}'.format(num_decks))
-
-
-def normalize_cards(cards):
-    print(cards)
-    normalized_cards = {}
-    for k, v in cards.items():
-        normalized_cards[k] = v[0] / v[1]
-    cards = normalized_cards
     return cards
 
 
-def plot_cards(cards):
-    sorted_cards = [(k, cards[k]) for k in sorted(cards, key=cards.get, reverse=True)]
+def normalize_cards(cards_to_normalize):
+    print(cards_to_normalize)
+    normalized_cards = {}
+    for k, v in cards_to_normalize.items():
+        normalized_cards[k] = v[0] / v[1]
+    cards_to_normalize = normalized_cards
+    return cards_to_normalize
+
+
+def clean_dict(cards_to_clean):
+    print(cards_to_clean)
+    cleaned_cards = {}
+    for k, v in cards_to_clean.items():
+        cleaned_cards[k] = v[0]
+    cards_to_clean = cleaned_cards
+    return cards_to_clean
+
+
+def plot_average_when_played(cards_for_average):
+    cards_for_average = normalize_cards(cards_for_average)
+    sorted_cards = [(k, cards_for_average[k]) for k in sorted(cards_for_average, key=cards_for_average.get, reverse=True)]
     print(sorted_cards[0:100])
     names = [x[0] for x in sorted_cards][0:100]
     values = [x[1] for x in sorted_cards][0:100]
     plt.figure(figsize=(40, 20))
     plt.xticks(rotation='vertical')
     plt.bar(range(len(names)), values, tick_label=names)
-    plt.savefig('result.png', dpi=200)
+    plt.title('Average per deck when played')
+    plt.savefig('../plots/result_average.png', dpi=200)
+    plt.show()
+
+
+def plot_total_played(cards_for_total):
+    cards_for_total = clean_dict(cards_for_total)
+    sorted_cards = [(k, cards_for_total[k]) for k in sorted(cards_for_total, key=cards_for_total.get, reverse=True)]
+    print(sorted_cards[0:100])
+    names = [x[0] for x in sorted_cards][0:100]
+    values = [x[1] for x in sorted_cards][0:100]
+    plt.figure(figsize=(40, 20))
+    plt.xticks(rotation='vertical')
+    plt.bar(range(len(names)), values, tick_label=names)
+    plt.title('Total played in all decks')
+    plt.savefig('../plots/result_total.png', dpi=200)
     plt.show()
 
 
 def _main():
 
-    obtain_decks()
-    plot_cards(normalize_cards(cards))
+    cards = obtain_decks()
+    plot_average_when_played(cards)
+    plot_total_played(cards)
 
 
 if __name__ == '__main__':
